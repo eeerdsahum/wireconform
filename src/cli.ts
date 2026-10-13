@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { listAdapters, runFixture } from './runner.js';
 import { WireConformError } from './errors.js';
@@ -155,6 +156,6 @@ export const main = async (argv = process.argv.slice(2)): Promise<number> => {
   }
 };
 
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   void main().then((code) => { process.exitCode = code; });
 }
