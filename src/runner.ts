@@ -6,7 +6,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { adapters, findAdapter } from './adapters/index.js';
 import { startCaptureServer } from './capture/server.js';
-import { WireConformError } from './errors.js';
+import { toSafeDiagnostic, WireConformError } from './errors.js';
 import { deriveExpectedParts } from './multipart/expectations.js';
 import { compareMultipart } from './multipart/compare.js';
 import { loadFixture } from './fixtures.js';
@@ -216,19 +216,25 @@ const caseResult = async (executionKind: GeneratorAdapter['executionKind'], work
       captureError = new WireConformError('NO_CAPTURED_REQUEST', 'Generated SDK completed without sending a request to the loopback server.');
     }
   } finally {
-    await capture.close();
+    try {
+      await capture.close();
+    } catch {
+      throw new WireConformError('CAPTURE_CLEANUP_FAILED', 'The loopback capture server could not close cleanly.');
+    }
   }
   if (captureError instanceof WireConformError) {
     const conformanceFailure = ['MALFORMED_MULTIPART', 'REQUEST_METHOD_MISMATCH', 'REQUEST_PATH_MISMATCH'].includes(captureError.code);
-    return { result: { name: fixtureCase.name, status: conformanceFailure ? 'fail' : 'error', partCount: 0, diagnostics: [{ code: captureError.code, message: captureError.message }] }, parts };
+    const diagnostic = toSafeDiagnostic(captureError);
+    return { result: { name: fixtureCase.name, status: conformanceFailure ? 'fail' : 'error', partCount: 0, diagnostics: [{ code: diagnostic.code, message: diagnostic.message }] }, parts };
   }
   if (captureError instanceof Error) {
     return { result: { name: fixtureCase.name, status: 'error', partCount: 0, diagnostics: [{ code: 'CAPTURE_ERROR', message: 'The local capture server could not parse the generated request.' }] }, parts };
   }
   if (sdkError) {
-    const code = sdkError instanceof WireConformError ? sdkError.code : 'SDK_EXECUTION';
-    const message = sdkError instanceof WireConformError && sdkError.code === 'SDK_TIMEOUT' ? sdkError.message : 'Generated SDK execution failed after sending its request.';
-    return { result: { name: fixtureCase.name, status: 'error', partCount: parts.length, diagnostics: [{ code, message }] }, parts };
+    const diagnostic = sdkError instanceof WireConformError && sdkError.code === 'SDK_TIMEOUT'
+      ? toSafeDiagnostic(sdkError)
+      : toSafeDiagnostic(new WireConformError('SDK_EXECUTION', 'Generated SDK execution failed after sending its request.'));
+    return { result: { name: fixtureCase.name, status: 'error', partCount: parts.length, diagnostics: [{ code: diagnostic.code, message: diagnostic.message }] }, parts };
   }
   const diagnostics = compareMultipart(parts, expected, fixtureCase, allowsAdditionalProperties);
   const hasUnsupported = diagnostics.some((diagnostic) => ['UNSUPPORTED_JSON_BODY', 'UNSUPPORTED_ADDITIONAL_PART'].includes(diagnostic.code));
@@ -253,13 +259,23 @@ export const runFixtureWithAdapter = async (fixturePath: string, adapter: Genera
     }
     return { fixtureCase, expected: await deriveExpectedParts(operation, fixtureCase, loaded.openapi) };
   }));
-  const adapterStatus = await adapter.available();
+  let adapterStatus: Awaited<ReturnType<GeneratorAdapter['available']>>;
+  try {
+    adapterStatus = await adapter.available();
+  } catch (error) {
+    adapterStatus = { ready: false, detail: toSafeDiagnostic(error).message };
+  }
   if (!adapterStatus.ready) throw new WireConformError('ADAPTER_NOT_READY', adapterStatus.detail);
   const runtimeDirectory = await mkdtemp(path.join(os.tmpdir(), 'wireconform-'));
   const generatedDirectory = path.join(runtimeDirectory, 'generated');
   try {
     await mkdir(generatedDirectory, { recursive: true });
-    await adapter.generate(loaded.path, generatedDirectory);
+    try {
+      await adapter.generate(loaded.path, generatedDirectory);
+    } catch (error) {
+      if (error instanceof WireConformError) throw error;
+      throw new WireConformError('GENERATOR_FAILED', 'The selected generator could not generate an SDK.');
+    }
     const workerPath = await writeWorker(runtimeDirectory);
     const results: CaseResult[] = [];
     for (const { fixtureCase, expected } of preparedCases) {
@@ -276,7 +292,11 @@ export const runFixtureWithAdapter = async (fixturePath: string, adapter: Genera
       cases: results,
     };
   } finally {
-    await rm(runtimeDirectory, { recursive: true, force: true });
+    try {
+      await rm(runtimeDirectory, { recursive: true, force: true });
+    } catch {
+      throw new WireConformError('TEMP_FILES_CLEANUP_FAILED', 'WireConform temporary files could not be removed.');
+    }
   }
 };
 
@@ -286,8 +306,10 @@ export const runFixture = async (fixturePath: string, adapterId: string): Promis
   return runFixtureWithAdapter(fixturePath, adapter);
 };
 
-export const listAdapters = async () => Promise.all(adapters.map(async (adapter) => ({
-  id: adapter.id,
-  version: adapter.version,
-  ...(await adapter.available()),
-})));
+export const listAdapters = async () => Promise.all(adapters.map(async (adapter) => {
+  try {
+    return { id: adapter.id, version: adapter.version, ...(await adapter.available()) };
+  } catch (error) {
+    return { id: adapter.id, version: adapter.version, ready: false, detail: toSafeDiagnostic(error).message };
+  }
+}));

@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { open } from 'node:fs/promises';
 import path from 'node:path';
 import { parseDocument } from 'yaml';
-import { WireConformError } from './errors.js';
+import { createYamlDiagnosticContext, WireConformError } from './errors.js';
 import { isConcreteMediaType } from './multipart/media-type.js';
 import type { JsonObject, LoadedOpenApi, MultipartOperation } from './types.js';
 
@@ -11,14 +11,12 @@ const supportedVersions = /^(3\.0\.[0-4]|3\.1\.[0-2])$/;
 
 export const isObject = (value: unknown): value is JsonObject => typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const describeLocation = (filePath: string): string => path.resolve(filePath);
-
 const readSpecificationBytes = async (filePath: string): Promise<Buffer> => {
   const handle = await open(filePath, constants.O_RDONLY);
   try {
     const stats = await handle.stat();
-    if (!stats.isFile()) throw new WireConformError('INVALID_DOCUMENT', `OpenAPI document must be a regular file: ${describeLocation(filePath)}`);
-    if (stats.size > maxSpecificationBytes) throw new WireConformError('SPEC_TOO_LARGE', `OpenAPI document exceeds ${maxSpecificationBytes} bytes: ${describeLocation(filePath)}`);
+    if (!stats.isFile()) throw new WireConformError('INVALID_DOCUMENT', 'OpenAPI document must be a regular file.');
+    if (stats.size > maxSpecificationBytes) throw new WireConformError('SPEC_TOO_LARGE', `OpenAPI document exceeds ${maxSpecificationBytes} bytes.`);
     const chunks: Buffer[] = [];
     let totalBytes = 0;
     while (totalBytes <= maxSpecificationBytes) {
@@ -26,7 +24,7 @@ const readSpecificationBytes = async (filePath: string): Promise<Buffer> => {
       const { bytesRead } = await handle.read(chunk, 0, chunk.byteLength, totalBytes);
       if (bytesRead === 0) break;
       totalBytes += bytesRead;
-      if (totalBytes > maxSpecificationBytes) throw new WireConformError('SPEC_TOO_LARGE', `OpenAPI document exceeds ${maxSpecificationBytes} bytes: ${describeLocation(filePath)}`);
+      if (totalBytes > maxSpecificationBytes) throw new WireConformError('SPEC_TOO_LARGE', `OpenAPI document exceeds ${maxSpecificationBytes} bytes.`);
       chunks.push(chunk.subarray(0, bytesRead));
     }
     return Buffer.concat(chunks, totalBytes);
@@ -37,7 +35,14 @@ const readSpecificationBytes = async (filePath: string): Promise<Buffer> => {
 
 const readDocument = async (filePath: string): Promise<JsonObject> => {
   const absolutePath = path.resolve(filePath);
-  const bytes = await readSpecificationBytes(absolutePath);
+  let bytes: Buffer;
+  try {
+    bytes = await readSpecificationBytes(absolutePath);
+  } catch (error) {
+    if (error instanceof WireConformError) throw error;
+    const code = error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT' ? 'OPENAPI_NOT_FOUND' : 'OPENAPI_UNREADABLE';
+    throw new WireConformError(code, 'OpenAPI document could not be read.');
+  }
   let value: unknown;
   if (path.extname(absolutePath).toLowerCase() === '.json') {
     try {
@@ -46,18 +51,27 @@ const readDocument = async (filePath: string): Promise<JsonObject> => {
       const parsed = parseDocument(text, { uniqueKeys: true });
       if (parsed.errors.length > 0) throw new Error('Duplicate JSON object keys.');
     } catch {
-      throw new WireConformError('INVALID_DOCUMENT', `OpenAPI document is not valid JSON: ${describeLocation(filePath)}`);
+      throw new WireConformError('INVALID_DOCUMENT', 'OpenAPI document is not valid JSON.');
     }
   } else {
-    const parsed = parseDocument(bytes.toString('utf8'), { uniqueKeys: true });
+    let parsed;
+    try {
+      parsed = parseDocument(bytes.toString('utf8'), { uniqueKeys: true });
+    } catch {
+      throw new WireConformError('INVALID_DOCUMENT', 'OpenAPI YAML is invalid.');
+    }
     if (parsed.errors.length > 0) {
       const firstError = parsed.errors[0];
-      throw new WireConformError('INVALID_DOCUMENT', `OpenAPI YAML is invalid at ${firstError?.linePos?.[0]?.line ?? 'unknown line'}: ${firstError?.message ?? 'parse error'}`);
+      const firstPosition = firstError?.linePos?.[0];
+      const line = firstPosition?.line;
+      const column = firstPosition?.col;
+      const context = createYamlDiagnosticContext('openapi', line, column);
+      throw new WireConformError('INVALID_DOCUMENT', 'OpenAPI YAML is invalid.', 2, context);
     }
     try {
       value = parsed.toJS({ maxAliasCount: 100 }) as unknown;
     } catch {
-      throw new WireConformError('INVALID_DOCUMENT', `OpenAPI YAML could not be converted safely: ${describeLocation(filePath)}`);
+      throw new WireConformError('INVALID_DOCUMENT', 'OpenAPI YAML could not be converted safely.');
     }
   }
   if (!isObject(value)) {

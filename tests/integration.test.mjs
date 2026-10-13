@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -33,6 +33,74 @@ const openApiGeneratorEnvironment = () => {
   return env;
 };
 
+test('CLI diagnostics redact private parser content, local paths, and adapter failures in text and JSON', async () => {
+  const temp = await mkdtemp(path.join(os.tmpdir(), 'wireconform-redaction-test-'));
+  const sentinel = 'WIRECONFORM_PRIVATE_SENTINEL_59246';
+  const privateRoot = path.join(temp, sentinel);
+  await mkdir(privateRoot);
+  try {
+    const openApiPath = path.join(privateRoot, 'openapi.yaml');
+    const indentedOpenApiPath = path.join(privateRoot, 'indented-openapi.yaml');
+    const scalarOpenApiPath = path.join(privateRoot, 'scalar-openapi.yaml');
+    const fixturePath = path.join(privateRoot, 'fixture.yaml');
+    const indentedFixturePath = path.join(privateRoot, 'indented-fixture.yaml');
+    const scalarFixturePath = path.join(privateRoot, 'scalar-fixture.yaml');
+    const jsonOpenApiPath = path.join(privateRoot, 'openapi.json');
+    const jsonFixturePath = path.join(privateRoot, 'fixture.json');
+    await writeFile(openApiPath, `openapi: 3.0.4\ninfo:\n  title: "${sentinel}\n`);
+    await writeFile(indentedOpenApiPath, `openapi: 3.0.4\ninfo:\n    title: private\n  description: "${sentinel}"\n`);
+    await writeFile(scalarOpenApiPath, `title: "${sentinel}"\n`);
+    await writeFile(fixturePath, `fixtureVersion: 1\nopenapi: "${sentinel}\n`);
+    await writeFile(indentedFixturePath, `fixtureVersion: 1\nopenapi: ./openapi.yaml\noperationId: upload\ncases:\n  - name: case\n    body: {}\n      private: "${sentinel}"\n`);
+    await writeFile(scalarFixturePath, `${sentinel}\n`);
+    await writeFile(jsonOpenApiPath, `{"openapi":"3.0.4","private":"${sentinel}",}`);
+    await writeFile(jsonFixturePath, `{"private":"${sentinel}",}`);
+    const missingOpenApiPath = path.join(privateRoot, 'missing-openapi.yaml');
+    const missingFixturePath = path.join(privateRoot, 'missing-fixture.yaml');
+    const missingReportPath = path.join(privateRoot, 'missing-report.json');
+    const errorCases = [
+      { args: ['validate', openApiPath], code: 'INVALID_DOCUMENT', hasLocation: true },
+      { args: ['validate', indentedOpenApiPath], code: 'INVALID_DOCUMENT', hasLocation: true },
+      { args: ['validate', scalarOpenApiPath], code: 'INVALID_DOCUMENT' },
+      { args: ['validate', jsonOpenApiPath], code: 'INVALID_DOCUMENT' },
+      { args: ['run', fixturePath, '--adapter', 'hey-api'], code: 'INVALID_FIXTURE', hasLocation: true },
+      { args: ['run', indentedFixturePath, '--adapter', 'hey-api'], code: 'INVALID_FIXTURE', hasLocation: true },
+      { args: ['run', scalarFixturePath, '--adapter', 'hey-api'], code: 'INVALID_FIXTURE' },
+      { args: ['run', jsonFixturePath, '--adapter', 'hey-api'], code: 'INVALID_FIXTURE' },
+      { args: ['validate', missingOpenApiPath], code: 'OPENAPI_NOT_FOUND' },
+      { args: ['run', missingFixturePath, '--adapter', 'hey-api'], code: 'FIXTURE_NOT_FOUND' },
+      { args: ['report', '--file', missingReportPath], code: 'REPORT_NOT_FOUND', jsonOnly: true },
+    ];
+    for (const errorCase of errorCases) {
+      for (const format of errorCase.jsonOnly ? ['json'] : ['text', 'json']) {
+        const result = spawnSync(process.execPath, [cliPath, ...errorCase.args, '--format', format], { cwd: projectRoot, encoding: 'utf8' });
+        assert.equal(result.status, 2, result.stderr);
+        assert.equal(`${result.stdout}\n${result.stderr}`.includes(sentinel), false);
+        if (format === 'json') {
+          assert.equal(result.stderr, '');
+          const output = JSON.parse(result.stdout);
+          assert.equal(output.diagnostics[0].code, errorCase.code);
+          assert.equal(output.diagnostics[0].message.includes(sentinel), false);
+          if (errorCase.hasLocation) assert.match(output.diagnostics[0].message, /line \d+, column \d+/);
+        } else {
+          assert.equal(result.stdout, '');
+          assert.match(result.stderr, new RegExp(`ERROR ${errorCase.code}:`));
+          if (errorCase.hasLocation) assert.match(result.stderr, /line \d+, column \d+/);
+        }
+      }
+    }
+    const env = { ...process.env, WIRECONFORM_OPENAPI_GENERATOR_JAR: path.join(privateRoot, 'missing-generator.jar') };
+    for (const format of ['text', 'json']) {
+      const result = spawnSync(process.execPath, [cliPath, 'adapters', '--format', format], { cwd: projectRoot, env, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(`${result.stdout}\n${result.stderr}`.includes(sentinel), false);
+      if (format === 'json') assert.equal(JSON.parse(result.stdout).adapters.find((adapter) => adapter.id === 'openapi-generator').detail.includes(sentinel), false);
+    }
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+});
+
 test('Hey API 0.99.0 request mismatch is a CLI conformance failure with a private-data-free report', async () => {
   const temp = await mkdtemp(path.join(os.tmpdir(), 'wireconform-cli-test-'));
   try {
@@ -57,13 +125,24 @@ test('Hey API 0.99.0 request mismatch is a CLI conformance failure with a privat
   }
 });
 
-test('Hey API 0.99.0 passes the binary and text multipart example', () => {
-  const result = spawnSync(process.execPath, [cliPath, 'run', heyPositiveFixture, '--adapter', 'hey-api', '--format', 'json'], { cwd: projectRoot, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr);
-  const report = JSON.parse(result.stdout);
-  assert.equal(report.adapter.version, '0.99.0');
-  assert.equal(report.status, 'pass');
-  assert.equal(report.cases[0].partCount, 3);
+test('Hey API 0.99.0 passes the binary and text multipart example without printing a private report path', async () => {
+  const temp = await mkdtemp(path.join(os.tmpdir(), 'wireconform-report-path-test-'));
+  const sentinel = 'WIRECONFORM_PRIVATE_REPORT_PATH_59246';
+  const reportPath = path.join(temp, sentinel, 'latest.json');
+  try {
+    const result = spawnSync(process.execPath, [cliPath, 'run', heyPositiveFixture, '--adapter', 'hey-api', '--format', 'json'], { cwd: projectRoot, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.adapter.version, '0.99.0');
+    assert.equal(report.status, 'pass');
+    assert.equal(report.cases[0].partCount, 3);
+    const textResult = spawnSync(process.execPath, [cliPath, 'run', heyPositiveFixture, '--adapter', 'hey-api', '--report', reportPath], { cwd: projectRoot, encoding: 'utf8' });
+    assert.equal(textResult.status, 0, textResult.stderr);
+    assert.match(textResult.stdout, /Report saved\./);
+    assert.equal(`${textResult.stdout}\n${textResult.stderr}`.includes(sentinel), false);
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
   process.stdout.write('Observed Hey API 0.99.0: binary and plain-text parts passed.\n');
 });
 

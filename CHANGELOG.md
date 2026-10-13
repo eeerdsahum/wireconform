@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-beta.2 — unreleased
+
+- Replaced parser text, absolute local paths, and arbitrary exception messages in CLI diagnostics with stable messages based on diagnostic codes; malformed YAML reports validated line and column numbers only.
+- Normalized OpenAPI, fixture, report, adapter, and cleanup failures so terminal and JSON errors do not expose filesystem paths or exception details.
+- Added sentinel regression coverage for malformed YAML and JSON, missing input/report paths, adapter setup output, nested exceptions, and both text and JSON modes.
+- Carries forward the merged CI generator-artifact sharing reliability fix from main.
+- Documented the beta.1 diagnostic privacy issue and the identifiers retained in reports.
+
 ## 0.1.0-beta.1 — 2026-10-13
 
 WireConform began as PartProbe, a proof of concept that reproduced a multipart Content-Type mismatch with `@hey-api/openapi-ts@0.99.0`. This beta preserves that regression case and turns the reproducer into a reusable CLI.

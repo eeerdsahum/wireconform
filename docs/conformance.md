@@ -32,7 +32,7 @@ Content-Type values are parsed as media types. The media type essence is compare
 
 ## Diagnostics and privacy
 
-Reports contain status, generator/specification identifiers, case names, part counts, diagnostic codes, and media-type essence when a Content-Type differs. They omit part bodies, filenames, header values, and credentials. The requested report file is the only report output; temporary generated SDKs are removed after each run.
+Reports contain status, generator/specification identifiers, case names, part counts, diagnostic codes, and expected/captured media-type essences when a Content-Type differs. They omit part bodies, filenames, credential fields, and header values, but retain operation IDs, path templates, specification basenames, fixture case names, and part names. These identifiers are copied from user input; do not put secrets in them, and review reports before sharing. CLI errors use stable messages, never parser excerpts or absolute paths, and include YAML line/column numbers only when the parser provides valid coordinates. The requested report file is the only report output; temporary generated SDKs are removed after each run.
 
 The loopback server binds specifically to `127.0.0.1`, accepts one request per case, has an ephemeral port and a timeout, and does not connect to the target API server. The worker checks common `http`, `https`, `fetch`, and TCP entry points so they target the capture origin. This is defense in depth, not a sandbox; a generated client could use other networking APIs, native modules, or child processes to bypass the check. The request size limit is 12 MiB and the fixture-file limit is 10 MiB.
 

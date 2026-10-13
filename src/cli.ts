@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-import path from 'node:path';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { listAdapters, runFixture } from './runner.js';
-import { WireConformError } from './errors.js';
+import { toSafeDiagnostic, WireConformError } from './errors.js';
 import { validateOpenApi } from './openapi.js';
 import { defaultReportPath, readReport, writeReport } from './report.js';
 import { wireconformVersion } from './version.js';
@@ -90,11 +89,10 @@ const printRun = (report: Awaited<ReturnType<typeof runFixture>>): void => {
 };
 
 const printError = (error: unknown, format: Options['format']): number => {
-  const code = error instanceof WireConformError ? error.code : 'INTERNAL_ERROR';
-  const message = error instanceof Error ? error.message : 'WireConform failed.';
-  if (format === 'json') printJson({ status: 'error', diagnostics: [{ code, message }] });
-  else process.stderr.write(`ERROR ${escapeTerminalText(code)}: ${escapeTerminalText(message)}\n`);
-  return error instanceof WireConformError ? error.exitCode : 2;
+  const diagnostic = toSafeDiagnostic(error);
+  if (format === 'json') printJson({ status: 'error', diagnostics: [{ code: diagnostic.code, message: diagnostic.message }] });
+  else process.stderr.write(`ERROR ${escapeTerminalText(diagnostic.code)}: ${escapeTerminalText(diagnostic.message)}\n`);
+  return diagnostic.exitCode;
 };
 
 export const main = async (argv = process.argv.slice(2)): Promise<number> => {
@@ -135,11 +133,11 @@ export const main = async (argv = process.argv.slice(2)): Promise<number> => {
       const fixture = positional[0];
       if (!fixture || positional.length !== 1 || !options.adapter) throw new WireConformError('CLI_ARGUMENT', 'run requires a fixture path and --adapter <id>.');
       const report = await runFixture(fixture, options.adapter);
-      const reportPath = await writeReport(report, options.reportFile ?? defaultReportPath());
+      await writeReport(report, options.reportFile ?? defaultReportPath());
       if (options.format === 'json') printJson(report);
       else {
         printRun(report);
-        process.stdout.write(`Report: ${escapeTerminalText(path.relative(process.cwd(), reportPath))}\n`);
+        process.stdout.write('Report saved.\n');
       }
       return report.status === 'pass' ? 0 : report.status === 'fail' ? 1 : 2;
     }
