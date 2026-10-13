@@ -1,0 +1,39 @@
+{
+  "wireconformVersion": "0.1.0-beta.1",
+  "createdAt": "2026-10-13T16:09:34.238Z",
+  "specification": {
+    "path": "openapi.yaml",
+    "openapi": "3.0.4",
+    "operationId": "postProductUploadDocument",
+    "method": "POST",
+    "pathTemplate": "/product/uploadDocument"
+  },
+  "adapter": {
+    "id": "hey-api",
+    "version": "0.99.0"
+  },
+  "status": "fail",
+  "cases": [
+    {
+      "name": "issue-4281-products-array",
+      "status": "fail",
+      "partCount": 4,
+      "diagnostics": [
+        {
+          "code": "CONTENT_TYPE_MISMATCH",
+          "message": "Content-Type does not match for products part 1.",
+          "part": "products",
+          "expected": "application/json",
+          "actual": "text/plain"
+        },
+        {
+          "code": "CONTENT_TYPE_MISMATCH",
+          "message": "Content-Type does not match for products part 2.",
+          "part": "products",
+          "expected": "application/json",
+          "actual": "text/plain"
+        }
+      ]
+    }
+  ]
+}

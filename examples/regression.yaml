@@ -1,0 +1,16 @@
+fixtureVersion: 1
+openapi: ../spec/openapi.yaml
+operationId: postProductUploadDocument
+cases:
+  - name: issue-4281-products-array
+    body:
+      file:
+        $wireconform: file
+        path: ./files/tiny.bin
+        filename: tiny.bin
+      overwrite: false
+      products:
+        - id: product-1
+          source: catalog
+        - id: product-2
+          source: inventory

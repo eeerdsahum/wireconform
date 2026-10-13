@@ -1,0 +1,44 @@
+openapi: 3.0.4
+info:
+  title: WireConform positive multipart example
+  version: 1.0.0
+paths:
+  /documents:
+    post:
+      operationId: uploadDocument
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - metadata
+                - note
+              properties:
+                file:
+                  type: string
+                  format: binary
+                metadata:
+                  $ref: '#/components/schemas/Metadata'
+                note:
+                  type: string
+            encoding:
+              metadata:
+                contentType: application/json
+      responses:
+        '204':
+          description: Accepted
+components:
+  schemas:
+    Metadata:
+      type: object
+      required:
+        - owner
+        - revision
+      properties:
+        owner:
+          type: string
+        revision:
+          type: integer

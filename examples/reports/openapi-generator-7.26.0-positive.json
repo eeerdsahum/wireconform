@@ -1,0 +1,24 @@
+{
+  "wireconformVersion": "0.1.0-beta.1",
+  "createdAt": "2026-10-13T16:09:10.290Z",
+  "specification": {
+    "path": "positive-openapi.yaml",
+    "openapi": "3.0.4",
+    "operationId": "uploadDocument",
+    "method": "POST",
+    "pathTemplate": "/documents"
+  },
+  "adapter": {
+    "id": "openapi-generator",
+    "version": "7.26.0"
+  },
+  "status": "pass",
+  "cases": [
+    {
+      "name": "json-binary-and-text",
+      "status": "pass",
+      "partCount": 3,
+      "diagnostics": []
+    }
+  ]
+}

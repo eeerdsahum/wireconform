@@ -1,0 +1,44 @@
+openapi: 3.0.4
+info:
+  title: WireConform multipart reproduction
+  version: 1.0.0
+paths:
+  /product/uploadDocument:
+    post:
+      operationId: postProductUploadDocument
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - products
+              properties:
+                file:
+                  type: string
+                  format: binary
+                overwrite:
+                  type: boolean
+                  default: false
+                products:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: '#/components/schemas/AssignableProduct'
+            encoding:
+              products:
+                contentType: application/json
+      responses:
+        '201':
+          description: Created
+components:
+  schemas:
+    AssignableProduct:
+      type: object
+      properties:
+        id:
+          type: string
+        source:
+          type: string

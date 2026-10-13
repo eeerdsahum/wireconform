@@ -1,0 +1,23 @@
+fixtureVersion: 1
+openapi: ./hey-api-positive-openapi.yaml
+operationId: uploadBasic
+cases:
+  - name: binary-and-text
+    body:
+      file:
+        $wireconform: file
+        path: ./files/tiny.bin
+        filename: tiny.bin
+      note: sample upload
+      overwrite: false
+    assert:
+      parts:
+        file:
+          count: 1
+          contentType: application/octet-stream
+        note:
+          count: 1
+          contentType: text/plain
+        overwrite:
+          count: 1
+          contentType: text/plain

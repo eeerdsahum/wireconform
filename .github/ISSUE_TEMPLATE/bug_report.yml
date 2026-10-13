@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a WireConform defect or an unexpected conformance result.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, private request bodies, customer data, or unredacted reports. See SECURITY.md for vulnerability reports.
+  - type: input
+    id: wireconform-version
+    attributes:
+      label: WireConform version
+      placeholder: 0.1.0-beta.1
+    validations:
+      required: true
+  - type: input
+    id: generator
+    attributes:
+      label: Generator and version
+      placeholder: hey-api 0.99.0
+    validations:
+      required: true
+  - type: input
+    id: openapi-version
+    attributes:
+      label: OpenAPI version
+      placeholder: 3.0.4
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: Describe the conformance expectation and the specification rule it relies on.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Include redacted diagnostic codes and exit status. Do not paste request bodies or header values.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include only a synthetic, privacy-safe fixture and OpenAPI document.
+      render: yaml
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed credentials, private data, and request bodies from this report.
+          required: true

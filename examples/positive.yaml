@@ -1,0 +1,25 @@
+fixtureVersion: 1
+openapi: ./positive-openapi.yaml
+operationId: uploadDocument
+cases:
+  - name: json-binary-and-text
+    body:
+      file:
+        $wireconform: file
+        path: ./files/tiny.bin
+        filename: tiny.bin
+      metadata:
+        owner: tools-team
+        revision: 3
+      note: sample upload
+    assert:
+      parts:
+        file:
+          count: 1
+          contentType: application/octet-stream
+        metadata:
+          count: 1
+          contentType: application/json
+        note:
+          count: 1
+          contentType: text/plain

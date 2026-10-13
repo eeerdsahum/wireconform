@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node-version: ['22.18.0', '24.x', '26.x']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+          verify-signature: true
+      - name: Download and verify OpenAPI Generator on Unix
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          generator_jar="$RUNNER_TEMP/openapi-generator-cli-7.26.0.jar"
+          curl -fsSLo "$generator_jar" https://repo.maven.apache.org/maven2/org/openapitools/openapi-generator-cli/7.26.0/openapi-generator-cli-7.26.0.jar
+          echo "1760050094997b9cc790cc1350be095f15da8c08a996b184d3eadc4ccda5e35e  $generator_jar" | sha256sum --check
+          echo "WIRECONFORM_OPENAPI_GENERATOR_JAR=$generator_jar" >> "$GITHUB_ENV"
+      - name: Download and verify OpenAPI Generator on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $generatorJar = Join-Path $env:RUNNER_TEMP 'openapi-generator-cli-7.26.0.jar'
+          Invoke-WebRequest -Uri 'https://repo.maven.apache.org/maven2/org/openapitools/openapi-generator-cli/7.26.0/openapi-generator-cli-7.26.0.jar' -OutFile $generatorJar
+          $actualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $generatorJar).Hash.ToLowerInvariant()
+          if ($actualHash -ne '1760050094997b9cc790cc1350be095f15da8c08a996b184d3eadc4ccda5e35e') { throw 'OpenAPI Generator checksum verification failed.' }
+          [IO.File]::AppendAllText($env:GITHUB_ENV, "WIRECONFORM_OPENAPI_GENERATOR_JAR=$generatorJar$([Environment]::NewLine)", [Text.UTF8Encoding]::new($false))
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:hey-api-next
+      - run: npm audit
+      - run: npm pack --dry-run
+
+  package-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.18.0'
+          cache: npm
+      - run: npm ci
+      - run: npm run package:smoke

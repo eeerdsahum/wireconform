@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest a supported OpenAPI feature, generator adapter, or workflow improvement.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the developer workflow that is currently difficult.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Explain what WireConform should accept, compare, or report.
+    validations:
+      required: true
+  - type: textarea
+    id: standards
+    attributes:
+      label: Specification or generator evidence
+      description: Link the applicable OpenAPI version, RFC, or generator documentation when relevant.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Privacy check
+      options:
+        - label: I did not include credentials, private request bodies, or customer data.
+          required: true

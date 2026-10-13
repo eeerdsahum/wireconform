@@ -1,0 +1,88 @@
+{
+  "name": "wireconform",
+  "version": "0.1.0-beta.1",
+  "description": "Vendor-neutral OpenAPI multipart conformance testing CLI",
+  "keywords": [
+    "openapi",
+    "multipart",
+    "conformance",
+    "api-testing",
+    "sdk"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eeerdsahum/wireconform.git"
+  },
+  "homepage": "https://github.com/eeerdsahum/wireconform#readme",
+  "bugs": {
+    "url": "https://github.com/eeerdsahum/wireconform/issues"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "bin": {
+    "wireconform": "./dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "CHANGELOG.md",
+    "docs/",
+    "examples/",
+    "spec/"
+  ],
+  "scripts": {
+    "prepack": "npm run build",
+    "clean": "node scripts/clean-dist.mjs",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "test:hey-api-next": "node tests/hey-api-next.mjs",
+    "test:full": "npm run lint && npm run typecheck && npm test && npm run test:hey-api-next && npm audit && npm run package:smoke && npm pack --dry-run",
+    "prepublishOnly": "npm run test:full",
+    "audit": "npm audit",
+    "package:check": "npm pack --dry-run",
+    "package:smoke": "npm run build && node scripts/package-smoke.mjs"
+  },
+  "dependencies": {
+    "axios": "1.20.0",
+    "tsx": "4.20.6",
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "0.99.0",
+    "@hey-api/openapi-ts-next": "npm:@hey-api/openapi-ts@0.0.0-next-20260930190945",
+    "@types/node": "26.6.5",
+    "eslint": "10.12.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.2"
+  },
+  "peerDependencies": {
+    "@hey-api/openapi-ts": "0.99.0"
+  },
+  "peerDependenciesMeta": {
+    "@hey-api/openapi-ts": {
+      "optional": true
+    }
+  },
+  "overrides": {
+    "@hey-api/openapi-ts": {
+      "js-yaml": "4.3.2"
+    },
+    "@hey-api/openapi-ts-next": {
+      "js-yaml": "5.4.3"
+    }
+  }
+}

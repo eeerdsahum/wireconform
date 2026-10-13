@@ -1,0 +1,28 @@
+openapi: 3.0.4
+info:
+  title: WireConform Hey API positive example
+  version: 1.0.0
+paths:
+  /basic:
+    post:
+      operationId: uploadBasic
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - note
+              properties:
+                file:
+                  type: string
+                  format: binary
+                note:
+                  type: string
+                overwrite:
+                  type: boolean
+      responses:
+        '204':
+          description: Accepted
