@@ -8,7 +8,24 @@ permissions:
   contents: read
 
 jobs:
+  generator-artifact:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download and verify OpenAPI Generator
+        shell: bash
+        run: |
+          generator_jar="$RUNNER_TEMP/openapi-generator-cli-7.26.0.jar"
+          curl -fsSLo "$generator_jar" https://repo.maven.apache.org/maven2/org/openapitools/openapi-generator-cli/7.26.0/openapi-generator-cli-7.26.0.jar
+          echo "1760050094997b9cc790cc1350be095f15da8c08a996b184d3eadc4ccda5e35e  $generator_jar" | sha256sum --check
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: openapi-generator-cli-7.26.0
+          path: ${{ runner.temp }}/openapi-generator-cli-7.26.0.jar
+          if-no-files-found: error
+          retention-days: 1
+
   quality:
+    needs: generator-artifact
     strategy:
       fail-fast: false
       matrix:
@@ -28,20 +45,22 @@ jobs:
           distribution: temurin
           java-version: '17'
           verify-signature: true
-      - name: Download and verify OpenAPI Generator on Unix
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: openapi-generator-cli-7.26.0
+          path: ${{ runner.temp }}
+      - name: Verify OpenAPI Generator on Unix
         if: runner.os != 'Windows'
         shell: bash
         run: |
           generator_jar="$RUNNER_TEMP/openapi-generator-cli-7.26.0.jar"
-          curl -fsSLo "$generator_jar" https://repo.maven.apache.org/maven2/org/openapitools/openapi-generator-cli/7.26.0/openapi-generator-cli-7.26.0.jar
           echo "1760050094997b9cc790cc1350be095f15da8c08a996b184d3eadc4ccda5e35e  $generator_jar" | sha256sum --check
           echo "WIRECONFORM_OPENAPI_GENERATOR_JAR=$generator_jar" >> "$GITHUB_ENV"
-      - name: Download and verify OpenAPI Generator on Windows
+      - name: Verify OpenAPI Generator on Windows
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $generatorJar = Join-Path $env:RUNNER_TEMP 'openapi-generator-cli-7.26.0.jar'
-          Invoke-WebRequest -Uri 'https://repo.maven.apache.org/maven2/org/openapitools/openapi-generator-cli/7.26.0/openapi-generator-cli-7.26.0.jar' -OutFile $generatorJar
           $actualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $generatorJar).Hash.ToLowerInvariant()
           if ($actualHash -ne '1760050094997b9cc790cc1350be095f15da8c08a996b184d3eadc4ccda5e35e') { throw 'OpenAPI Generator checksum verification failed.' }
           [IO.File]::AppendAllText($env:GITHUB_ENV, "WIRECONFORM_OPENAPI_GENERATOR_JAR=$generatorJar$([Environment]::NewLine)", [Text.UTF8Encoding]::new($false))
