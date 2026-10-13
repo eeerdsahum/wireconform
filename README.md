@@ -14,7 +14,7 @@ npm link
 
 Run these commands from the WireConform checkout directory.
 
-After the first npm release, install the published CLI with `npm install --global wireconform`. This repository has not been published yet.
+The first beta is available from the [WireConform v0.1.0-beta.1 GitHub release](https://github.com/eeerdsahum/wireconform/releases/tag/v0.1.0-beta.1). Download and extract its source archive, then run the commands above. WireConform is not published to npm in this beta.
 
 To try the unreleased CLI in another project, build and pack it from this checkout, then install the resulting tarball:
 
@@ -115,6 +115,19 @@ PASS binary-and-text (3 parts)
 Result: PASS
 ```
 
+The captured JSON report shows the actual values for both repeated items:
+
+```json
+{
+  "code": "CONTENT_TYPE_MISMATCH",
+  "part": "products",
+  "expected": "application/json",
+  "actual": "text/plain"
+}
+```
+
+This excerpt is from the [committed Hey API 0.99.0 report](examples/reports/hey-api-0.99.0-regression.json); the report omits request bodies, filenames, credentials, and header values.
+
 OpenAPI Generator 7.26.0 passes the JSON/binary/text example and independently fails the array serialization check because it sends the whole array as one JSON part:
 
 ```text
@@ -213,4 +226,4 @@ The integration suite runs the pinned Hey API baseline. It runs OpenAPI Generato
 
 The source project's `js-yaml` overrides are necessary because the stable generator's reference parser pins vulnerable `4.2.0`, while the prerelease parser requests vulnerable `5.3.0`. The source lock uses patched compatible releases `4.3.2` and `5.4.3`; the real generator cases exercise those versions, and the source dependency tree reports zero audit findings. The released CLI keeps Hey API optional so installing WireConform alone does not install the vulnerable generator tree. If you opt into that adapter, apply the root override shown above. These patched parser versions retain the `load` API used by the generators. See the [`js-yaml` security advisories](https://github.com/nodeca/js-yaml/security/advisories/GHSA-2883-xcg3-v3hh), [4.x merge-key advisory](https://github.com/nodeca/js-yaml/security/advisories/GHSA-52cp-r559-cp3m), and [5.x advisory](https://github.com/nodeca/js-yaml/security/advisories/GHSA-r3ph-w7gj-g6xm). `npm explain js-yaml` prints the locked dependency tree.
 
-WireConform is prepared for npm packaging but has not been published. See the [beta release notes](docs/releases/v0.1.0-beta.1.md), [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md), and [LICENSE](LICENSE).
+See the [v0.1.0-beta.1 release](https://github.com/eeerdsahum/wireconform/releases/tag/v0.1.0-beta.1), [beta release notes](docs/releases/v0.1.0-beta.1.md), [conformance limitations](docs/conformance.md), [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md), and [LICENSE](LICENSE). WireConform is prepared for npm packaging but has not been published to npm.
