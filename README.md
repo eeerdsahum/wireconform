@@ -14,14 +14,16 @@ npm link
 
 Run these commands from the WireConform checkout directory.
 
-The first beta is available from the [WireConform v0.1.0-beta.1 GitHub release](https://github.com/eeerdsahum/wireconform/releases/tag/v0.1.0-beta.1). Download and extract its source archive, then run the commands above. WireConform is not published to npm in this beta.
+The published [WireConform v0.1.0-beta.1 release](https://github.com/eeerdsahum/wireconform/releases/tag/v0.1.0-beta.1) has a diagnostic privacy issue: malformed YAML can echo part of the source file, and some filesystem errors can expose local paths. Avoid running beta.1 on private inputs where terminal or CI output is shared. A diagnostic redaction fix is being prepared for beta.2; beta.2 is not published yet.
+
+WireConform is not published to npm. To install a published version, download and extract its source archive, then run the commands above.
 
 To try the unreleased CLI in another project, build and pack it from this checkout, then install the resulting tarball:
 
 ```powershell
 npm pack
 Set-Location C:\my-project
-npm install --save-dev C:\path\to\wireconform-0.1.0-beta.1.tgz
+npm install --save-dev C:\path\to\wireconform-0.1.0-beta.2.tgz
 ```
 
 The Hey API adapter is an optional peer because its baseline generator has a vulnerable transitive `js-yaml@4.2.0` pin and needs a compatible TypeScript compiler. To run it in that project, install the pinned generator and verified TypeScript version, then override the parser to the patched compatible release:
@@ -72,7 +74,7 @@ wireconform report --format json [--file <report.json>]
 
 `validate` checks the supported OpenAPI document structure, local references, and multipart operations. It returns the multipart operation IDs that WireConform can run. It is not a complete OpenAPI meta-schema validator or a general-purpose API linter; unsupported multipart constructs produce an explicit diagnostic.
 
-`run` generates the SDK with a pinned adapter, starts a fresh loopback capture server for each case, and compares the actual request with expectations derived from the selected OpenAPI version. Reports contain case names, part counts, safe diagnostics, generator and specification metadata, and timestamps. Request bodies, filenames, credentials, and header values are not written to reports.
+`run` generates the SDK with a pinned adapter, starts a fresh loopback capture server for each case, and compares the actual request with expectations derived from the selected OpenAPI version. Reports contain case names, part counts, diagnostic codes, generator and specification metadata, and timestamps. They omit request bodies, filenames, credentials, and header values, but retain user-provided identifiers such as operation IDs, path templates, fixture case names, and part names. Content-Type mismatch diagnostics include the expected and captured media-type essences.
 
 Exit codes are stable for scripts:
 
@@ -97,19 +99,19 @@ JSON mode writes machine-readable output to stdout. `run` saves the same report 
 Hey API 0.99.0 sends four parts, including two `products` items with the RFC 7578 default `text/plain`; the OpenAPI encoding expects `application/json` for each object item:
 
 ```text
-WireConform 0.1.0-beta.1 — postProductUploadDocument (POST /product/uploadDocument)
+WireConform 0.1.0-beta.2 — postProductUploadDocument (POST /product/uploadDocument)
 Adapter: hey-api 0.99.0
 FAIL issue-4281-products-array (4 parts)
   CONTENT_TYPE_MISMATCH: Content-Type does not match for products part 1.
   CONTENT_TYPE_MISMATCH: Content-Type does not match for products part 2.
 Result: FAIL
-Report: examples\reports\hey-api-0.99.0-regression.json
+Report saved.
 ```
 
 The run exits `1`. A passing run with the same stable adapter produces:
 
 ```text
-WireConform 0.1.0-beta.1 — uploadBasic (POST /basic)
+WireConform 0.1.0-beta.2 — uploadBasic (POST /basic)
 Adapter: hey-api 0.99.0
 PASS binary-and-text (3 parts)
 Result: PASS
@@ -206,7 +208,7 @@ The [conformance limitations guide](docs/conformance.md) gives details and the r
 
 The capture listener binds to `127.0.0.1` on an ephemeral port and does not proxy requests. The SDK worker checks common `http`, `https`, `fetch`, and TCP entry points against that capture origin to block accidental calls to other destinations. This check is defense in depth, not a security sandbox: generated code could use other APIs, native modules, or child processes to bypass it. Requests are capped at 12 MiB and 500 parts. The known adapters invoke only their pinned generators; OpenAPI Generator requires an explicitly configured JAR that matches the pinned artifact checksum.
 
-WireConform executes the generated SDK in a child Node process to send the request. Only run fixtures and OpenAPI documents you trust: generated code runs with the current user's permissions. Do not include secrets in fixture values. Bodies are not printed or saved by default; use fixture assertions and the structured diagnostics to inspect behavior without copying payloads into reports.
+WireConform executes generated SDK code in a child Node process with the current user's permissions. It is not sandboxed; only run trusted specifications and fixtures, and do not include secrets in fixture values or identifiers. Current diagnostics omit parser excerpts, filesystem paths, and arbitrary exception messages. Reports retain specification and fixture identifiers, so review them before sharing. Part bodies are not printed or saved by default.
 
 See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
@@ -226,4 +228,4 @@ The integration suite runs the pinned Hey API baseline. It runs OpenAPI Generato
 
 The source project's `js-yaml` overrides are necessary because the stable generator's reference parser pins vulnerable `4.2.0`, while the prerelease parser requests vulnerable `5.3.0`. The source lock uses patched compatible releases `4.3.2` and `5.4.3`; the real generator cases exercise those versions, and the source dependency tree reports zero audit findings. The released CLI keeps Hey API optional so installing WireConform alone does not install the vulnerable generator tree. If you opt into that adapter, apply the root override shown above. These patched parser versions retain the `load` API used by the generators. See the [`js-yaml` security advisories](https://github.com/nodeca/js-yaml/security/advisories/GHSA-2883-xcg3-v3hh), [4.x merge-key advisory](https://github.com/nodeca/js-yaml/security/advisories/GHSA-52cp-r559-cp3m), and [5.x advisory](https://github.com/nodeca/js-yaml/security/advisories/GHSA-r3ph-w7gj-g6xm). `npm explain js-yaml` prints the locked dependency tree.
 
-See the [v0.1.0-beta.1 release](https://github.com/eeerdsahum/wireconform/releases/tag/v0.1.0-beta.1), [beta release notes](docs/releases/v0.1.0-beta.1.md), [conformance limitations](docs/conformance.md), [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md), and [LICENSE](LICENSE). WireConform is prepared for npm packaging but has not been published to npm.
+See the [v0.1.0-beta.1 release](https://github.com/eeerdsahum/wireconform/releases/tag/v0.1.0-beta.1), [beta.1 release notes](docs/releases/v0.1.0-beta.1.md), [beta.2 draft notes](docs/releases/v0.1.0-beta.2.md), [conformance limitations](docs/conformance.md), [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md), and [LICENSE](LICENSE). WireConform has not been published to npm.

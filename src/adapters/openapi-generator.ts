@@ -7,7 +7,7 @@ import { pipeline } from 'node:stream/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { WireConformError } from '../errors.js';
+import { toSafeDiagnostic, WireConformError } from '../errors.js';
 import type { GeneratorAdapter } from '../types.js';
 
 const execFile = promisify(execFileCallback);
@@ -90,16 +90,23 @@ export const openApiGeneratorAdapter: GeneratorAdapter = {
   executionKind: 'openapi-generator-axios',
   available: async () => {
     let directory: string | undefined;
+    let availability: { ready: boolean; detail: string };
     try {
       directory = await mkdtemp(path.join(os.tmpdir(), 'wireconform-oag-check-'));
       const jar = await stageVerifiedJar(directory);
       await assertJavaAndJar(jar);
-      return { ready: true, detail: `Official typescript-axios generator ${version}; JAR checksum verified` };
+      availability = { ready: true, detail: `Official typescript-axios generator ${version}; JAR checksum verified` };
     } catch (error) {
-      return { ready: false, detail: error instanceof Error ? error.message : 'Adapter is not configured.' };
-    } finally {
-      if (directory) await rm(directory, { recursive: true, force: true });
+      availability = { ready: false, detail: toSafeDiagnostic(error).message };
     }
+    if (directory) {
+      try {
+        await rm(directory, { recursive: true, force: true });
+      } catch {
+        return { ready: false, detail: toSafeDiagnostic(new WireConformError('ADAPTER_CLEANUP_FAILED', 'Temporary adapter files could not be removed.')).message };
+      }
+    }
+    return availability;
   },
   generate: async (openApiPath, outputDirectory) => {
     const jar = await stageVerifiedJar(path.dirname(outputDirectory));
@@ -114,7 +121,11 @@ export const openApiGeneratorAdapter: GeneratorAdapter = {
       if (error instanceof WireConformError) throw error;
       throw new WireConformError('GENERATOR_FAILED', `OpenAPI Generator ${version} could not generate the TypeScript Axios SDK.`);
     } finally {
-      await rm(jar, { force: true });
+      try {
+        await rm(jar, { force: true });
+      } catch {
+        throw new WireConformError('ADAPTER_CLEANUP_FAILED', 'Temporary adapter files could not be removed.');
+      }
     }
   },
 };

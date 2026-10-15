@@ -79,23 +79,28 @@ const isReport = (value: unknown): value is RunReport => {
 };
 
 export const writeReport = async (report: RunReport, filePath = defaultReportPath()): Promise<string> => {
-  const absolutePath = path.resolve(filePath);
-  await ensureDirectoryPath(path.dirname(absolutePath));
   try {
-    const stats = await lstat(absolutePath);
-    if (stats.isSymbolicLink() || !stats.isFile()) throw new WireConformError('UNSAFE_REPORT_PATH', 'Report output must be a regular file, not a symbolic link or directory.');
+    const absolutePath = path.resolve(filePath);
+    await ensureDirectoryPath(path.dirname(absolutePath));
+    try {
+      const stats = await lstat(absolutePath);
+      if (stats.isSymbolicLink() || !stats.isFile()) throw new WireConformError('UNSAFE_REPORT_PATH', 'Report output must be a regular file, not a symbolic link or directory.');
+    } catch (error) {
+      if (error instanceof WireConformError) throw error;
+      if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') throw error;
+    }
+    const handle = await open(absolutePath, constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | (constants.O_NOFOLLOW ?? 0), 0o600);
+    try {
+      await handle.chmod(0o600);
+      await handle.writeFile(`${JSON.stringify(report, null, 2)}\n`, 'utf8');
+    } finally {
+      await handle.close();
+    }
+    return absolutePath;
   } catch (error) {
     if (error instanceof WireConformError) throw error;
-    if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') throw error;
+    throw new WireConformError('REPORT_WRITE_FAILED', 'The WireConform report could not be written.');
   }
-  const handle = await open(absolutePath, constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | (constants.O_NOFOLLOW ?? 0), 0o600);
-  try {
-    await handle.chmod(0o600);
-    await handle.writeFile(`${JSON.stringify(report, null, 2)}\n`, 'utf8');
-  } finally {
-    await handle.close();
-  }
-  return absolutePath;
 };
 
 export const readReport = async (filePath = defaultReportPath()): Promise<RunReport> => {
@@ -128,7 +133,7 @@ export const readReport = async (filePath = defaultReportPath()): Promise<RunRep
     }
     throw new WireConformError('REPORT_NOT_FOUND', `Could not read a WireConform report at ${absolutePath}.`);
   } finally {
-    await handle?.close();
+    await handle?.close().catch(() => undefined);
   }
   let value: unknown;
   try {

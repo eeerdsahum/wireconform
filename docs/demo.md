@@ -21,11 +21,11 @@ node dist/cli.js run examples/hey-api-positive.yaml --adapter hey-api
 Expected terminal output from the pinned generator run:
 
 ```text
-WireConform 0.1.0-beta.1 — uploadBasic (POST /basic)
+WireConform 0.1.0-beta.2 — uploadBasic (POST /basic)
 Adapter: hey-api 0.99.0
 PASS binary-and-text (3 parts)
 Result: PASS
-Report: .wireconform\latest-report.json
+Report saved.
 ```
 
 ## Reproduce and inspect the mismatch
@@ -71,4 +71,4 @@ To read the saved report without running the generator again:
 node dist/cli.js report --format json --file work/hey-api-regression.json
 ```
 
-The committed [`Hey API 0.99.0 report`](../examples/reports/hey-api-0.99.0-regression.json) contains the captured result. WireConform records safe part metadata and diagnostic values but excludes bodies, filenames, credentials, and header values.
+The committed [`Hey API 0.99.0 report`](../examples/reports/hey-api-0.99.0-regression.json) contains the captured result. WireConform omits bodies, filenames, credentials, and header values, while retaining operation and fixture identifiers and expected/captured media-type essences.

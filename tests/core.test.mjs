@@ -6,6 +6,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { compareMultipart } from '../dist/multipart/compare.js';
 import { escapeTerminalText } from '../dist/cli.js';
+import { toSafeDiagnostic, WireConformError } from '../dist/errors.js';
 import { deriveExpectedParts } from '../dist/multipart/expectations.js';
 import { loadFixture } from '../dist/fixtures.js';
 import { loadOpenApi, resolveLocalReference } from '../dist/openapi.js';
@@ -46,6 +47,21 @@ const withTempDir = async (run) => {
     await rm(directory, { recursive: true, force: true });
   }
 };
+
+test('safe diagnostics omit raw exceptions and retain only validated YAML coordinates', () => {
+  const sentinel = 'WIRECONFORM_PRIVATE_SENTINEL_59246';
+  const unexpected = new Error(`parser text contains ${sentinel}`, { cause: new Error(`nested ${sentinel}`) });
+  assert.deepEqual(toSafeDiagnostic(unexpected), {
+    code: 'INTERNAL_ERROR',
+    message: 'WireConform encountered an unexpected internal error.',
+    exitCode: 2,
+  });
+  const yamlError = new WireConformError('INVALID_FIXTURE', `parser text contains ${sentinel}`, 2, { yamlSource: 'fixture', line: 7, column: 3 });
+  assert.equal(yamlError.message, 'Fixture YAML is invalid at line 7, column 3.');
+  assert.equal(yamlError.message.includes(sentinel), false);
+  const invalidPosition = new WireConformError('INVALID_DOCUMENT', `parser text contains ${sentinel}`, 2, { yamlSource: 'openapi', line: -1, column: Number.NaN });
+  assert.equal(invalidPosition.message, 'OpenAPI YAML is invalid.');
+});
 
 test('derives OpenAPI 3.0 and 3.1 multipart defaults separately', async () => {
   await withTempDir(async (directory) => {

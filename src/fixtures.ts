@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { open, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { parseDocument } from 'yaml';
-import { WireConformError } from './errors.js';
+import { createYamlDiagnosticContext, WireConformError } from './errors.js';
 import { inspectJsonText, isSafeJsonValue } from './json.js';
 import { isObject } from './openapi.js';
 import type { FixtureCase, FixtureFile, JsonObject } from './types.js';
@@ -34,7 +34,14 @@ const readStructuredBytes = async (filePath: string): Promise<Buffer> => {
 };
 
 const parseStructuredFile = async (filePath: string): Promise<unknown> => {
-  const bytes = await readStructuredBytes(filePath);
+  let bytes: Buffer;
+  try {
+    bytes = await readStructuredBytes(filePath);
+  } catch (error) {
+    if (error instanceof WireConformError) throw error;
+    const code = error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT' ? 'FIXTURE_NOT_FOUND' : 'FIXTURE_UNREADABLE';
+    throw new WireConformError(code, 'Fixture could not be read.');
+  }
   let text: string;
   try {
     text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -48,8 +55,19 @@ const parseStructuredFile = async (filePath: string): Promise<unknown> => {
     if (inspected.kind === 'unsupported') throw new WireConformError('INVALID_FIXTURE', 'Fixture numbers must be finite and within JavaScript safe integer precision.');
     return inspected.value;
   }
-  const parsed = parseDocument(text, { uniqueKeys: true });
-  if (parsed.errors.length > 0) throw new WireConformError('INVALID_FIXTURE', `Fixture YAML is invalid: ${parsed.errors[0]?.message ?? 'parse error'}.`);
+  let parsed;
+  try {
+    parsed = parseDocument(text, { uniqueKeys: true });
+  } catch {
+    throw new WireConformError('INVALID_FIXTURE', 'Fixture YAML is invalid.');
+  }
+  if (parsed.errors.length > 0) {
+    const firstPosition = parsed.errors[0]?.linePos?.[0];
+    const line = firstPosition?.line;
+    const column = firstPosition?.col;
+    const context = createYamlDiagnosticContext('fixture', line, column);
+    throw new WireConformError('INVALID_FIXTURE', 'Fixture YAML is invalid.', 2, context);
+  }
   try {
     const value = parsed.toJS({ maxAliasCount: 100 }) as unknown;
     if (!isSafeJsonValue(value)) throw new Error('Fixture values are not safe JSON values.');
@@ -90,12 +108,25 @@ const normalizeFileMarkers = async (value: unknown, fixtureRoot: string, fileBud
   if (!isObject(value)) return value;
   if (value.$wireconform === 'file') {
     if (typeof value.path !== 'string' || value.path.length === 0) throw new WireConformError('INVALID_FIXTURE', 'A file marker must include a path.');
-    const filePath = await realpath(path.resolve(fixtureRoot, value.path));
+    let filePath: string;
+    try {
+      filePath = await realpath(path.resolve(fixtureRoot, value.path));
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT' ? 'FIXTURE_FILE_NOT_FOUND' : 'FIXTURE_FILE_UNREADABLE';
+      throw new WireConformError(code, 'A file referenced by the fixture could not be opened.');
+    }
     const relative = path.relative(fixtureRoot, filePath);
     if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
       throw new WireConformError('FIXTURE_PATH_ESCAPE', 'Fixture file paths must stay within the fixture directory.');
     }
-    const file = await readFixtureFile(filePath);
+    let file: Buffer;
+    try {
+      file = await readFixtureFile(filePath);
+    } catch (error) {
+      if (error instanceof WireConformError) throw error;
+      const code = error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT' ? 'FIXTURE_FILE_NOT_FOUND' : 'FIXTURE_FILE_UNREADABLE';
+      throw new WireConformError(code, 'A file referenced by the fixture could not be read.');
+    }
     if (file.byteLength > maxFileBytes) throw new WireConformError('FIXTURE_FILE_TOO_LARGE', `Fixture file exceeds ${maxFileBytes} bytes.`);
     fileBudget.totalBytes += file.byteLength;
     if (fileBudget.totalBytes > maxFixtureFilesBytes) throw new WireConformError('FIXTURE_FILES_TOO_LARGE', `Fixture files exceed the combined ${maxFixtureFilesBytes} byte limit.`);
@@ -155,7 +186,13 @@ const validateFixtureCase = async (value: unknown, index: number, fixtureRoot: s
 };
 
 export const loadFixture = async (filePath: string): Promise<{ path: string; openApiPath: string; fixture: FixtureFile }> => {
-  const absolutePath = await realpath(path.resolve(filePath));
+  let absolutePath: string;
+  try {
+    absolutePath = await realpath(path.resolve(filePath));
+  } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT' ? 'FIXTURE_NOT_FOUND' : 'FIXTURE_UNREADABLE';
+    throw new WireConformError(code, 'Fixture could not be opened.');
+  }
   const value = await parseStructuredFile(absolutePath);
   if (!isObject(value) || value.fixtureVersion !== 1 || typeof value.openapi !== 'string' || typeof value.operationId !== 'string' || !Array.isArray(value.cases)) {
     throw new WireConformError('INVALID_FIXTURE', 'Fixture requires fixtureVersion: 1, openapi, operationId, and cases.');
