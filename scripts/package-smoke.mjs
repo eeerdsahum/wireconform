@@ -28,9 +28,16 @@ const runCli = (consumerRoot, args, expectedStatus, label) => {
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'wireconform-package-smoke-'));
 const consumerRoot = path.join(tempRoot, 'consumer');
 try {
-  const packed = JSON.parse(runNpm(['pack', '--ignore-scripts', '--json', '--pack-destination', tempRoot], projectRoot, 'npm pack'));
-  assert.equal(packed.length, 1);
-  const tarball = path.join(tempRoot, packed[0].filename);
+  const providedTarball = process.env.WIRECONFORM_PACKAGE_TARBALL;
+  let tarball;
+  if (providedTarball) {
+    tarball = path.resolve(providedTarball);
+    assert.equal(existsSync(tarball), true, 'the provided WireConform tarball must exist');
+  } else {
+    const packed = JSON.parse(runNpm(['pack', '--ignore-scripts', '--json', '--pack-destination', tempRoot], projectRoot, 'npm pack'));
+    assert.equal(packed.length, 1);
+    tarball = path.join(tempRoot, packed[0].filename);
+  }
   await mkdir(consumerRoot);
   await writeFile(path.join(consumerRoot, 'package.json'), JSON.stringify({
     name: 'wireconform-package-smoke-consumer',
@@ -43,6 +50,8 @@ try {
   runNpm(['audit', '--audit-level=low'], consumerRoot, 'audit clean consumer dependency tree');
 
   const packageRoot = path.join(consumerRoot, 'node_modules', ...packageJson.name.split('/'));
+  const installedPackage = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
+  assert.equal(installedPackage.name, packageJson.name);
   const binPath = path.join(consumerRoot, 'node_modules', '.bin', process.platform === 'win32' ? 'wireconform.cmd' : 'wireconform');
   assert.equal(existsSync(binPath), true, 'the package manager must install the WireConform executable');
   const validation = JSON.parse(runCli(consumerRoot, ['validate', path.join(packageRoot, 'examples', 'positive-openapi.yaml'), '--format', 'json'], 0, 'validate packaged OpenAPI document'));
@@ -70,7 +79,7 @@ try {
   assert.equal(readback.status, 'fail');
   assert.equal(JSON.stringify(readback).includes('product-1'), false);
   assert.equal(JSON.stringify(readback).includes('catalog'), false);
-  process.stdout.write(`External tarball install passed: ${packageJson.name}@${packageJson.version}; Hey API 0.99.0 positive case PASS; regression FAIL with 2 CONTENT_TYPE_MISMATCH diagnostics and CLI exit 1.\n`);
+  process.stdout.write(`External tarball install passed: ${installedPackage.name}@${installedPackage.version}; Hey API 0.99.0 positive case PASS; regression FAIL with 2 CONTENT_TYPE_MISMATCH diagnostics and CLI exit 1.\n`);
 } finally {
   await rm(tempRoot, { recursive: true, force: true });
 }
