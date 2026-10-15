@@ -4,7 +4,7 @@ WireConform is an open-source CLI for checking whether generated OpenAPI clients
 
 ## Install from npm
 
-When an npm beta package is available, install it in the project you want to test:
+WireConform `0.1.0-beta.2` is published on [npm](https://www.npmjs.com/package/wireconform). Install the prerelease explicitly through the `beta` dist-tag:
 
 ```powershell
 npm install --save-dev wireconform@beta
@@ -21,7 +21,7 @@ npx wireconform run node_modules/wireconform/examples/hey-api-positive.yaml --ad
 
 The bundled fixture resolves its OpenAPI document and tiny binary file from the installed package. For your own test, create a fixture that references your OpenAPI document and local files using paths relative to the fixture, then run `npx wireconform run ./fixtures/upload.yaml --adapter hey-api`.
 
-The npm beta uses the `beta` dist-tag. The [v0.1.0-beta.2 source archive](https://github.com/eeerdsahum/wireconform/releases/tag/v0.1.0-beta.2) and source installation remain available for developers who prefer building from GitHub.
+The npm registry currently points both `beta` and `latest` to beta.2. Use the explicit `@beta` tag so the prerelease is clear. The `latest` tag issue is under investigation; see [npm distribution status](docs/npm-publishing.md). The [v0.1.0-beta.2 source archive](https://github.com/eeerdsahum/wireconform/releases/tag/v0.1.0-beta.2) and source installation remain available for developers who prefer building from GitHub.
 
 ## Install from source
 
@@ -37,7 +37,7 @@ Run these commands from the WireConform checkout directory.
 
 The published [WireConform v0.1.0-beta.1 release](https://github.com/eeerdsahum/wireconform/releases/tag/v0.1.0-beta.1) has a diagnostic privacy issue: malformed YAML can expose input snippets and some filesystem errors can expose local paths in CLI and JSON diagnostics. No actual credential exposure has been confirmed. Do not share raw beta.1 logs that may contain sensitive data. The fix is included in [WireConform v0.1.0-beta.2](https://github.com/eeerdsahum/wireconform/releases/tag/v0.1.0-beta.2); upgrade to beta.2.
 
-WireConform is not published to npm. To install beta.2, download and extract its source archive, then run the commands above.
+The beta.2 npm package is available as `wireconform@beta`. Its bundled README reflects the pre-publication source state and still contains the earlier source-install instructions; this repository README has the current npm quick start.
 
 To build a tarball from this checkout for another project, pack it here, then install the resulting tarball:
 
