@@ -70,7 +70,7 @@ jobs:
       - run: npm test
       - run: npm run test:hey-api-next
       - run: npm audit
-      - run: npm pack --dry-run
+      - run: npm run package:check
 
   package-smoke:
     strategy:

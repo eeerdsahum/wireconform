@@ -1,0 +1,109 @@
+name: npm beta publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Annotated prerelease tag to publish, such as v0.1.0-beta.3
+        required: true
+        type: string
+      confirmation:
+        description: Type PUBLISH wireconform@<version> to authorize this publication
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-beta-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: npm-publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.x'
+      - name: Verify release authorization and source tag
+        id: release
+        shell: bash
+        env:
+          WIRECONFORM_GITHUB_REF: ${{ github.ref }}
+          WIRECONFORM_GITHUB_SHA: ${{ github.sha }}
+          WIRECONFORM_GITHUB_TOKEN: ${{ github.token }}
+          WIRECONFORM_RELEASE_TAG: ${{ inputs.tag }}
+          WIRECONFORM_RELEASE_CONFIRMATION: ${{ inputs.confirmation }}
+        run: node scripts/verify-npm-release.mjs >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ inputs.tag }}
+          path: release-source
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify the checked out tag contents
+        env:
+          WIRECONFORM_RELEASE_TAG: ${{ inputs.tag }}
+          WIRECONFORM_RELEASE_SOURCE: ${{ github.workspace }}/release-source
+        run: node scripts/verify-npm-release.mjs source
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+          verify-signature: true
+      - name: Download and verify OpenAPI Generator
+        shell: bash
+        run: |
+          generator_jar="$RUNNER_TEMP/openapi-generator-cli-7.26.0.jar"
+          curl -fsSLo "$generator_jar" https://repo.maven.apache.org/maven2/org/openapitools/openapi-generator-cli/7.26.0/openapi-generator-cli-7.26.0.jar
+          echo "1760050094997b9cc790cc1350be095f15da8c08a996b184d3eadc4ccda5e35e  $generator_jar" | sha256sum --check
+          echo "WIRECONFORM_OPENAPI_GENERATOR_JAR=$generator_jar" >> "$GITHUB_ENV"
+      - run: npm ci
+        working-directory: release-source
+      - run: npm run test:full
+        working-directory: release-source
+      - name: Pack and inspect the exact release tarball
+        id: pack
+        shell: bash
+        working-directory: release-source
+        env:
+          WIRECONFORM_PACKAGE_ROOT: ${{ github.workspace }}/release-source
+        run: |
+          npm pack --ignore-scripts --json --pack-destination "$RUNNER_TEMP" > "$RUNNER_TEMP/wireconform-pack.json"
+          tarball="$(node "$GITHUB_WORKSPACE/scripts/verify-npm-package.mjs" "$RUNNER_TEMP/wireconform-pack.json" "$RUNNER_TEMP")"
+          printf 'tarball=%s\n' "$tarball" >> "$GITHUB_OUTPUT"
+      - name: Install and exercise the exact release tarball externally
+        env:
+          WIRECONFORM_PACKAGE_TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: npm run package:smoke:packed
+      - name: Recheck the tag, main branch, and unused npm version
+        env:
+          WIRECONFORM_GITHUB_REF: ${{ github.ref }}
+          WIRECONFORM_GITHUB_SHA: ${{ github.sha }}
+          WIRECONFORM_GITHUB_TOKEN: ${{ github.token }}
+          WIRECONFORM_RELEASE_TAG: ${{ inputs.tag }}
+          WIRECONFORM_RELEASE_CONFIRMATION: ${{ inputs.confirmation }}
+        run: node scripts/verify-npm-release.mjs
+      - name: Publish with npm Trusted Publishing
+        working-directory: release-source
+        env:
+          WIRECONFORM_PACKAGE_TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: npm publish "$WIRECONFORM_PACKAGE_TARBALL" --tag beta
+      - name: Verify the published npm version and beta dist-tag
+        env:
+          WIRECONFORM_RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          WIRECONFORM_LATEST_BEFORE: ${{ steps.release.outputs.latest_before }}
+        run: node scripts/verify-npm-release.mjs published

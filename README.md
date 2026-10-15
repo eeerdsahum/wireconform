@@ -2,6 +2,27 @@
 
 WireConform is an open-source CLI for checking whether generated OpenAPI clients send multipart requests that match the multipart rules in their OpenAPI document. It runs the generated client against a temporary HTTP capture server bound only to `127.0.0.1`, then compares the received part names, counts, media types, headers, and bodies.
 
+## Install from npm
+
+When an npm beta package is available, install it in the project you want to test:
+
+```powershell
+npm install --save-dev wireconform@beta
+npx wireconform adapters
+npx wireconform validate ./openapi.yaml
+```
+
+To run the included passing Hey API fixture, first install the pinned generator and TypeScript compiler, then apply the `js-yaml` override shown in [Hey API setup](#generator-adapters):
+
+```powershell
+npm install --save-dev --save-exact @hey-api/openapi-ts@0.99.0 typescript@5.9.3
+npx wireconform run node_modules/wireconform/examples/hey-api-positive.yaml --adapter hey-api
+```
+
+The bundled fixture resolves its OpenAPI document and tiny binary file from the installed package. For your own test, create a fixture that references your OpenAPI document and local files using paths relative to the fixture, then run `npx wireconform run ./fixtures/upload.yaml --adapter hey-api`.
+
+The npm beta uses the `beta` dist-tag. The [v0.1.0-beta.2 source archive](https://github.com/eeerdsahum/wireconform/releases/tag/v0.1.0-beta.2) and source installation remain available for developers who prefer building from GitHub.
+
 ## Install from source
 
 Requirements: Node.js 22.18 or newer and npm 10 or newer.
@@ -228,4 +249,4 @@ The integration suite runs the pinned Hey API baseline. It runs OpenAPI Generato
 
 The source project's `js-yaml` overrides are necessary because the stable generator's reference parser pins vulnerable `4.2.0`, while the prerelease parser requests vulnerable `5.3.0`. The source lock uses patched compatible releases `4.3.2` and `5.4.3`; the real generator cases exercise those versions, and the source dependency tree reports zero audit findings. The released CLI keeps Hey API optional so installing WireConform alone does not install the vulnerable generator tree. If you opt into that adapter, apply the root override shown above. These patched parser versions retain the `load` API used by the generators. See the [`js-yaml` security advisories](https://github.com/nodeca/js-yaml/security/advisories/GHSA-2883-xcg3-v3hh), [4.x merge-key advisory](https://github.com/nodeca/js-yaml/security/advisories/GHSA-52cp-r559-cp3m), and [5.x advisory](https://github.com/nodeca/js-yaml/security/advisories/GHSA-r3ph-w7gj-g6xm). `npm explain js-yaml` prints the locked dependency tree.
 
-See the [v0.1.0-beta.2 release](https://github.com/eeerdsahum/wireconform/releases/tag/v0.1.0-beta.2), [beta.2 release notes](docs/releases/v0.1.0-beta.2.md), [historical beta.1 release](https://github.com/eeerdsahum/wireconform/releases/tag/v0.1.0-beta.1) and [beta.1 release notes](docs/releases/v0.1.0-beta.1.md), [conformance limitations](docs/conformance.md), [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md), and [LICENSE](LICENSE). WireConform has not been published to npm.
+See the [v0.1.0-beta.2 release](https://github.com/eeerdsahum/wireconform/releases/tag/v0.1.0-beta.2), [beta.2 release notes](docs/releases/v0.1.0-beta.2.md), [historical beta.1 release](https://github.com/eeerdsahum/wireconform/releases/tag/v0.1.0-beta.1) and [beta.1 release notes](docs/releases/v0.1.0-beta.1.md), [conformance limitations](docs/conformance.md), [npm publishing and release plan](docs/npm-publishing.md), [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md), and [LICENSE](LICENSE).

@@ -50,11 +50,12 @@
     "lint": "eslint .",
     "test": "npm run build && node --test tests/*.test.mjs",
     "test:hey-api-next": "node tests/hey-api-next.mjs",
-    "test:full": "npm run lint && npm run typecheck && npm test && npm run test:hey-api-next && npm audit && npm run package:smoke && npm pack --dry-run",
+    "test:full": "npm run lint && npm run typecheck && npm test && npm run test:hey-api-next && npm audit && npm run package:smoke && npm run package:check",
     "prepublishOnly": "npm run test:full",
     "audit": "npm audit",
-    "package:check": "npm pack --dry-run",
-    "package:smoke": "npm run build && node scripts/package-smoke.mjs"
+    "package:check": "node scripts/verify-npm-package.mjs",
+    "package:smoke": "npm run build && node scripts/package-smoke.mjs",
+    "package:smoke:packed": "node scripts/package-smoke.mjs"
   },
   "dependencies": {
     "axios": "1.20.0",
@@ -84,5 +85,8 @@
     "@hey-api/openapi-ts-next": {
       "js-yaml": "5.4.3"
     }
+  },
+  "publishConfig": {
+    "tag": "beta"
   }
 }
