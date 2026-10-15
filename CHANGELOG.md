@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0-beta.2 — unreleased
+## 0.1.0-beta.2 — 2026-10-15
 
 - Replaced parser text, absolute local paths, and arbitrary exception messages in CLI diagnostics with stable messages based on diagnostic codes; malformed YAML reports validated line and column numbers only.
 - Normalized OpenAPI, fixture, report, adapter, and cleanup failures so terminal and JSON errors do not expose filesystem paths or exception details.
