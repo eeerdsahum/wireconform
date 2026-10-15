@@ -6,15 +6,18 @@ WireConform is an open-source CLI for checking whether generated OpenAPI clients
 
 WireConform `0.1.0-beta.2` is published on [npm](https://www.npmjs.com/package/wireconform). Install the prerelease explicitly through the `beta` dist-tag:
 
+Requirements: Node.js 22.18 or newer and npm 10 or newer.
+
 ```powershell
 npm install --save-dev wireconform@beta
 npx wireconform adapters
 npx wireconform validate ./openapi.yaml
 ```
 
-To run the included passing Hey API fixture, first install the pinned generator and TypeScript compiler, then apply the `js-yaml` override shown in [Hey API setup](#generator-adapters):
+To run the included passing Hey API fixture, add the tested `js-yaml` override before installing the optional generator. This avoids locking the generator's vulnerable `js-yaml@4.2.0` dependency before the override is applied:
 
 ```powershell
+npm pkg set 'overrides.@hey-api/openapi-ts.js-yaml=4.3.2'
 npm install --save-dev --save-exact @hey-api/openapi-ts@0.99.0 typescript@5.9.3
 npx wireconform run node_modules/wireconform/examples/hey-api-positive.yaml --adapter hey-api
 ```
